@@ -134,7 +134,7 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 </section>
 </main></div>
 
-<div id="receiptModal" class="modal hidden"><div class="dialog" style="width:min(620px,100%)"><h3>レシートプレビュー</h3><div id="receiptPreview"></div><div class="actions"><button class="btn" onclick="closeReceipt()">閉じる</button><button class="btn primary" onclick="printReceipt()">印刷</button></div></div></div>
+<div id="receiptModal" class="modal hidden"><div class="dialog" style="width:min(620px,100%)"><h3>レシートプレビュー</h3><div id="receiptPreview"></div><div class="actions"><button class="btn" onclick="closeReceipt()">閉じる</button><button class="btn primary" onclick="printReceipt()">印刷</button><button class="btn good" onclick="returnToSales()">売上・POSへ戻る</button></div></div></div>
 
 <div id="otherModal" class="modal hidden"><div class="dialog"><h3>その他売上</h3><div class="notice">入力した内容を今回だけ使用するか、POSメニューへ登録できます。</div><label>内容</label><input id="otherName" placeholder="例：ヘッドスパ"><label style="margin-top:10px">金額</label><input id="otherPrice" type="number" inputmode="numeric"><div class="actions"><button class="btn" onclick="closeOther()">キャンセル</button><button class="btn" onclick="useOther(false)">今回だけ使用</button><button class="btn primary" onclick="useOther(true)">POSへ登録して使用</button></div></div></div>
 
@@ -220,7 +220,18 @@ function checkout(){
 }
 function showReceipt(r){const tax=Math.round(r.total*10/110),subtotal=r.total-tax;const lines=(r.items&&r.items.length?r.items:[{name:r.item,qty:1,price:r.total}]).map(x=>'<div class="row"><span>'+esc(x.name)+(x.qty>1?' ×'+x.qty:'')+'</span><span>'+yen(x.price*x.qty)+'</span></div>').join('');receiptPreview.innerHTML='<div class="receipt"><h3>店舗管理デモ</h3><div class="center">RECEIPT</div><div class="rule"></div><div>'+esc(r.date)+' '+esc(r.time||'')+'</div><div>伝票番号 '+esc(r.slip||'-')+'</div><div class="rule"></div>'+lines+'<div class="rule"></div><div class="row"><span>税抜</span><span>'+yen(subtotal)+'</span></div><div class="row"><span>消費税(10%)</span><span>'+yen(tax)+'</span></div><div class="row total"><span>合計</span><span>'+yen(r.total)+'</span></div><div class="rule"></div><div class="row"><span>支払方法</span><span>'+esc(r.payment||'現金')+'</span></div><div class="row"><span>お預り</span><span>'+yen(r.received??r.total)+'</span></div><div class="row"><span>お釣り</span><span>'+yen(r.change||0)+'</span></div><div class="rule"></div><div class="center">ありがとうございました</div></div>';receiptModal.classList.remove('hidden')}
 function closeReceipt(){receiptModal.classList.add('hidden')}
-function printReceipt(){const html=receiptPreview.innerHTML;const w=window.open('','_blank','width=420,height=720');if(!w){alert('印刷画面を開けませんでした。');return}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>レシート</title><style>@page{size:80mm auto;margin:0}body{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.receipt{width:68mm;padding:6mm;font-size:12px;line-height:1.5}.receipt h3{text-align:center;font-family:sans-serif;margin:0 0 4px}.center{text-align:center}.rule{border-top:1px dashed #111;margin:8px 0}.row{display:flex;justify-content:space-between;gap:12px}.total{font-size:16px;font-weight:800}</style></head><body>'+html+'</body></html>');w.document.close();setTimeout(()=>w.print(),250)}
+function returnToSales(){
+  closeReceipt();
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  const btn=document.querySelector('.nav button[data-page="sales"]');
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));
+  document.getElementById('sales').classList.remove('hidden');
+  document.getElementById('pageTitle').textContent='売上・POS';
+  setPosCategory('service');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function printReceipt(){const html=receiptPreview.innerHTML;const w=window.open('','_blank','width=420,height=720');if(!w){alert('印刷画面を開けませんでした。');return}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>レシート</title><style>@page{size:80mm auto;margin:0}body{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.receipt{width:68mm;padding:6mm;font-size:12px;line-height:1.5}.receipt h3{text-align:center;font-family:sans-serif;margin:0 0 4px}.center{text-align:center}.rule{border-top:1px dashed #111;margin:8px 0}.row{display:flex;justify-content:space-between;gap:12px}.total{font-size:16px;font-weight:800}.demoBack{display:block;margin:18px auto;padding:12px 18px;border:0;border-radius:10px;background:#e5e7eb;font-weight:700}@media print{.demoBack{display:none}}</style></head><body>'+html+'<button class="demoBack" onclick="window.close()">売上・POSへ戻る</button></body></html>');w.document.close();setTimeout(()=>w.print(),250)}
 function renderSales(){salesTable.innerHTML=makeTable(db.sales,['日付','摘要','総売','店販','支払'],r=>[r.date,esc(r.item),yen(r.total),yen(r.retail),esc(r.payment||'-')])}
 function addExpense(){const x={date:eDate.value,cat:eCat.value,memo:eMemo.value.trim(),amount:Number(eAmount.value)};if(!x.date||!x.memo||!x.amount){alert('日付・内容・金額を入力してください。');return}db.expenses.unshift(x);save();eMemo.value='';eAmount.value=''}
 function renderExpenses(){expenseTable.innerHTML=makeTable(db.expenses,['日付','分類','内容','金額'],r=>[r.date,'<span class="badge">'+esc(r.cat)+'</span>',esc(r.memo),yen(r.amount)])}
