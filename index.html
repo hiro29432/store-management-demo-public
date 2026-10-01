@@ -140,18 +140,26 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 </section>
 
 <section id="settings" class="page hidden">
+<div id="settingsSaveStatus" class="notice hidden">設定を保存しました。</div>
+
 <div class="panel">
-<h2>店舗・レシート設定</h2>
+<h2>店舗情報</h2>
 <div class="formgrid">
 <div><label>店舗名</label><input id="setStoreName"></div>
 <div><label>電話番号</label><input id="setStorePhone"></div>
 <div class="full"><label>住所</label><input id="setStoreAddress"></div>
-<div><label>消費税率（%）</label><input id="setTaxRate" type="number" min="0" step="1"></div>
 </div>
-<div class="actions"><button class="btn primary" onclick="saveBasicSettings()">保存</button></div>
 </div>
 
-<div class="panel"><h2>POS項目</h2><div id="settingsPosTable"></div>
+<div class="panel">
+<h2>会計・レシート</h2>
+<div class="formgrid">
+<div><label>消費税率（%）</label><input id="setTaxRate" type="number" min="0" step="1"></div>
+</div>
+<div class="actions"><button class="btn primary" onclick="saveBasicSettings()">店舗・会計設定を保存</button></div>
+</div>
+
+<div class="panel"><h2>POS項目</h2><div class="notice">施術・店販の名称、金額、表示順を編集できます。</div><div id="settingsPosTable"></div>
 <div class="formgrid" style="margin-top:14px">
 <div><label>区分</label><select id="newPosCategory"><option value="service">施術</option><option value="retail">店販</option></select></div>
 <div><label>名称</label><input id="newPosName"></div>
@@ -240,7 +248,24 @@ db.settings.payments=db.settings.payments||['現金','クレジットカード',
 let currentPosCategory='service';
 let otherCategory='service';
 let cart=[];
-function save(){localStorage.setItem(KEY,JSON.stringify(db));renderAll()}
+function save(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify(db));
+  }catch(e){
+    alert('保存できませんでした。端末の保存領域をご確認ください。');
+    return false;
+  }
+  renderAll();
+  showSettingsSaved();
+  return true;
+}
+function showSettingsSaved(){
+  const el=document.getElementById('settingsSaveStatus');
+  if(!el || document.getElementById('settings').classList.contains('hidden')) return;
+  el.classList.remove('hidden');
+  clearTimeout(showSettingsSaved._timer);
+  showSettingsSaved._timer=setTimeout(()=>el.classList.add('hidden'),1800);
+}
 function setDefaults(){['sDate','eDate','cDate'].forEach(id=>document.getElementById(id).value=today())}
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(b.dataset.page).classList.remove('hidden');const titles={home:'ホーム',sales:'売上・POS',expenses:'経費',inventory:'在庫',calendar:'カレンダー',monthly:'月次・印刷',settings:'設定'};document.getElementById('pageTitle').textContent=titles[b.dataset.page];renderAll()});
 function renderAll(){renderPos();renderCart();renderSales();renderExpenses();renderInventory();renderHome();renderCalendar();renderMonthly();renderSettings()}
@@ -370,7 +395,11 @@ function returnToSales(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function printReceipt(){const html=receiptPreview.innerHTML;const w=window.open('','_blank','width=420,height=720');if(!w){alert('印刷画面を開けませんでした。');return}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>レシート</title><style>@page{size:80mm auto;margin:0}body{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.receipt{width:68mm;padding:6mm;font-size:12px;line-height:1.5}.receipt h3{text-align:center;font-family:sans-serif;margin:0 0 4px}.center{text-align:center}.rule{border-top:1px dashed #111;margin:8px 0}.row{display:flex;justify-content:space-between;gap:12px}.total{font-size:16px;font-weight:800}.demoBack{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:block;min-width:220px;padding:14px 22px;border:0;border-radius:14px;background:#2563eb;color:#fff;font:700 16px -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.18)}@media print{.demoBack{display:none}}</style></head><body>'+html+'<button class="demoBack" onclick="if(window.opener&&window.opener.returnToSales){window.opener.returnToSales();}window.close();">売上・POSへ戻る</button></body></html>');w.document.close();setTimeout(()=>w.print(),250)}
-function renderSales(){salesTable.innerHTML=makeTable(db.sales,['日付','摘要','総売','店販','支払'],r=>[r.date,esc(r.item),yen(r.total),yen(r.retail),esc(r.payment||'-')])}
+function renderSales(){
+  const el=document.getElementById('salesTable');
+  if(!el) return;
+  el.innerHTML=makeTable(db.sales,['日付','摘要','総売','店販','支払'],r=>[r.date,esc(r.item),yen(r.total),yen(r.retail),esc(r.payment||'-')]);
+}
 function renderSettings(){
   if(!document.getElementById('setStoreName')) return;
   setStoreName.value=db.settings.storeName||'';
@@ -378,9 +407,13 @@ function renderSettings(){
   setStoreAddress.value=db.settings.storeAddress||'';
   setTaxRate.value=db.settings.taxRate??10;
 
-  settingsPosTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>順番</th><th>区分</th><th>名称</th><th class="num">金額</th><th>操作</th></tr></thead><tbody>'+
-  db.pos.map((p,i)=>'<tr><td><button class="btn" onclick="movePosSetting('+i+',-1)" '+(i===0?'disabled':'')+'>↑</button> <button class="btn" onclick="movePosSetting('+i+',1)" '+(i===db.pos.length-1?'disabled':'')+'>↓</button></td><td>'+(p.category==='retail'?'店販':'施術')+'</td><td><input value="'+esc(p.name)+'" onchange="editPosName('+i+',this.value)"></td><td><input type="number" value="'+p.price+'" onchange="editPosPrice('+i+',this.value)"></td><td><button class="btn danger" onclick="deletePosSetting('+i+')">削除</button></td></tr>').join('')+
-  '</tbody></table></div>';
+  const posSection=(cat,title)=>{
+    const rows=db.pos.map((p,i)=>({...p,_i:i})).filter(p=>p.category===cat);
+    return '<h3 style="margin:18px 0 10px">'+title+'</h3><div class="tablewrap"><table><thead><tr><th>順番</th><th>名称</th><th class="num">金額</th><th>操作</th></tr></thead><tbody>'+
+      rows.map((p,rowIndex)=>'<tr><td><button class="btn" onclick="movePosWithinCategory(\''+cat+'\','+rowIndex+',-1)" '+(rowIndex===0?'disabled':'')+'>↑</button> <button class="btn" onclick="movePosWithinCategory(\''+cat+'\','+rowIndex+',1)" '+(rowIndex===rows.length-1?'disabled':'')+'>↓</button></td><td><input value="'+esc(p.name)+'" onchange="editPosName('+p._i+',this.value)"></td><td><input type="number" value="'+p.price+'" onchange="editPosPrice('+p._i+',this.value)"></td><td><button class="btn danger" onclick="deletePosSetting('+p._i+')">削除</button></td></tr>').join('')+
+      '</tbody></table></div>';
+  };
+  settingsPosTable.innerHTML=posSection('service','施術')+posSection('retail','店販');
 
   settingsExpenseCats.innerHTML=db.settings.expenseCategories.map((x,i)=>'<span class="badge" style="margin:4px">'+esc(x)+' <button onclick="deleteExpenseCategory('+i+')" style="border:0;background:transparent">×</button></span>').join('');
   settingsPayments.innerHTML=db.settings.payments.map((x,i)=>'<span class="badge" style="margin:4px">'+esc(x)+' <button onclick="deletePaymentMethod('+i+')" style="border:0;background:transparent">×</button></span>').join('');
@@ -394,6 +427,13 @@ function saveBasicSettings(){db.settings.storeName=setStoreName.value.trim()||'�
 function editPosName(i,v){const n=v.trim();if(n){db.pos[i].name=n;save()}}
 function editPosPrice(i,v){db.pos[i].price=Math.max(0,Number(v||0));save()}
 function movePosSetting(i,d){const j=i+d;if(j<0||j>=db.pos.length)return;const tmp=db.pos[i];db.pos[i]=db.pos[j];db.pos[j]=tmp;save()}
+function movePosWithinCategory(cat,rowIndex,d){
+  const indexes=db.pos.map((p,i)=>p.category===cat?i:-1).filter(i=>i>=0);
+  const target=rowIndex+d;
+  if(target<0||target>=indexes.length) return;
+  const a=indexes[rowIndex],b=indexes[target],tmp=db.pos[a];
+  db.pos[a]=db.pos[b];db.pos[b]=tmp;save();
+}
 function deletePosSetting(i){if(confirm('このPOS項目を削除しますか？')){db.pos.splice(i,1);save()}}
 function addSettingPos(){const n=newPosName.value.trim(),p=Number(newPosPrice.value),cat=newPosCategory.value;if(!n||!p){alert('名称と金額を入力してください。');return}db.pos.push({name:n,price:p,category:cat});newPosName.value='';newPosPrice.value='';save()}
 function addExpenseCategory(){const n=newExpenseCat.value.trim();if(!n)return;if(!db.settings.expenseCategories.includes(n))db.settings.expenseCategories.push(n);newExpenseCat.value='';save()}
