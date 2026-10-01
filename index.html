@@ -196,7 +196,7 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
       <button onclick="priceKey('4')">4</button><button onclick="priceKey('5')">5</button><button onclick="priceKey('6')">6</button>
       <button onclick="priceKey('1')">1</button><button onclick="priceKey('2')">2</button><button onclick="priceKey('3')">3</button>
       <button onclick="priceKey('0')">0</button><button onclick="priceKey('00')">00</button><button onclick="priceKey('back')">⌫</button>
-      <button onclick="priceKey('clear')">C</button><button class="wide" onclick="closePriceKeypad(true)" style="background:#2563eb;color:#fff">決定</button>
+      <button onclick="priceKey('clear')" style="font-size:16px">初期金額</button><button class="wide" onclick="closePriceKeypad(true)" style="background:#2563eb;color:#fff">決定</button>
     </div>
   </div>
 </div>
@@ -258,7 +258,7 @@ function selectPos(i){
   const p=db.pos[i];
   const hit=cart.find(x=>x.name===p.name&&x.category===p.category&&x.price===p.price);
   if(hit) hit.qty+=1;
-  else cart.push({name:p.name,price:Number(p.price),category:p.category,qty:1});
+  else cart.push({name:p.name,price:Number(p.price),basePrice:Number(p.price),category:p.category,qty:1});
   renderCart();
 }
 function cartTotals(){
@@ -282,15 +282,18 @@ function renderCart(){
   updateChange();
 }
 function changeCartQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart()}
-let priceEditIndex=-1,priceKeypadValue='';
+let priceEditIndex=-1,priceKeypadValue='',priceOriginalValue=0;
 function openPriceKeypad(i){
   priceEditIndex=i;
-  priceKeypadValue=String(cart[i]?.price??'').replace(/\D/g,'');
+  const item=cart[i];
+  if(item&&item.basePrice==null) item.basePrice=Number(item.price||0);
+  priceOriginalValue=Number(item?.basePrice??item?.price??0);
+  priceKeypadValue=String(item?.price??'').replace(/\D/g,'');
   renderPriceKeypad();
   priceKeypadModal.classList.remove('hidden');
 }
 function priceKey(k){
-  if(k==='clear') priceKeypadValue='';
+  if(k==='clear') priceKeypadValue=String(priceOriginalValue);
   else if(k==='back') priceKeypadValue=priceKeypadValue.slice(0,-1);
   else {
     if(priceKeypadValue==='0') priceKeypadValue='';
@@ -301,10 +304,11 @@ function priceKey(k){
 function renderPriceKeypad(){priceKeypadDisplay.textContent=yen(Number(priceKeypadValue||0))}
 function closePriceKeypad(apply=false){
   if(apply&&priceEditIndex>=0&&cart[priceEditIndex]){
-    cart[priceEditIndex].price=Number(priceKeypadValue||0);
+    cart[priceEditIndex].price=Number(priceKeypadValue||priceOriginalValue||0);
     renderCart();
   }
   priceEditIndex=-1;
+  priceOriginalValue=0;
   priceKeypadModal.classList.add('hidden');
 }
 function removeCartItem(i){cart.splice(i,1);renderCart()}
@@ -397,7 +401,7 @@ function renderCalendar(){const d=new Date(),y=d.getFullYear(),m=d.getMonth(),fi
 function renderMonthly(){const s=db.sales.filter(x=>x.date.startsWith(ym())),e=db.expenses.filter(x=>x.date.startsWith(ym())),st=s.reduce((a,b)=>a+b.total,0),rt=s.reduce((a,b)=>a+b.retail,0),et=e.reduce((a,b)=>a+b.amount,0);mSales.textContent=yen(st);mExpense.textContent=yen(et);mProfit.textContent=yen(st-et);mRetail.textContent=yen(rt);const by={};e.forEach(x=>by[x.cat]=(by[x.cat]||0)+x.amount);monthlyDetail.innerHTML='<p><b>'+ym()+'</b> の集計</p><div class="tablewrap"><table><thead><tr><th>経費分類</th><th class="num">金額</th></tr></thead><tbody>'+Object.entries(by).map(([k,v])=>'<tr><td>'+esc(k)+'</td><td class="num">'+yen(v)+'</td></tr>').join('')+'</tbody></table></div>'}
 function makeTable(rows,heads,map){return '<div class="tablewrap"><table><thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+map(r).map((v,i)=>'<td class="'+(i>=2?'num':'')+'">'+v+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}
 function openOther(){otherCategory=currentPosCategory;const h=otherModal.querySelector('h3');if(h)h.textContent=(otherCategory==='retail'?'店販':'施術')+'・その他';otherModal.classList.remove('hidden');otherName.focus()}function closeOther(){otherModal.classList.add('hidden');otherName.value='';otherPrice.value=''}
-function useOther(register){const n=otherName.value.trim(),p=Number(otherPrice.value),cat=otherCategory;if(!n||!p){alert('内容と金額を入力してください。');return}if(register&&!db.pos.some(x=>x.name===n&&x.category===cat))db.pos.push({name:n,price:p,category:cat});const hit=cart.find(x=>x.name===n&&x.category===cat&&x.price===p);if(hit)hit.qty+=1;else cart.push({name:n,price:p,category:cat,qty:1});localStorage.setItem(KEY,JSON.stringify(db));closeOther();currentPosCategory=cat;setPosCategory(cat);renderCart();renderAll()}
+function useOther(register){const n=otherName.value.trim(),p=Number(otherPrice.value),cat=otherCategory;if(!n||!p){alert('内容と金額を入力してください。');return}if(register&&!db.pos.some(x=>x.name===n&&x.category===cat))db.pos.push({name:n,price:p,category:cat});const hit=cart.find(x=>x.name===n&&x.category===cat&&x.price===p);if(hit)hit.qty+=1;else cart.push({name:n,price:p,basePrice:p,category:cat,qty:1});localStorage.setItem(KEY,JSON.stringify(db));closeOther();currentPosCategory=cat;setPosCategory(cat);renderCart();renderAll()}
 function exportData(){const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='店舗管理デモ_バックアップ.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 function resetDemo(){if(confirm('デモデータを初期状態に戻しますか？')){db=seed();save();setDefaults()}}
 function updateOnline(){offlineStatus.textContent=navigator.onLine?'オフライン対応':'オフライン稼働中'}window.addEventListener('online',updateOnline);window.addEventListener('offline',updateOnline);
