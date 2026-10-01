@@ -82,7 +82,7 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 <div class="card"><div class="k">今月の経費</div><div class="v" id="monthExp">¥0</div></div>
 <div class="card"><div class="k">在庫金額</div><div class="v" id="invValue">¥0</div></div>
 </div>
-<div class="grid2"><div class="panel"><h2>最近の売上</h2><div id="recentSales"></div></div><div class="panel"><h2>本日の予定</h2><div id="todayEvents"></div></div></div>
+<div class="panel"><h2>売上一覧</h2><div id="homeSalesTable"></div></div>
 </section>
 
 <section id="sales" class="page">
@@ -139,6 +139,8 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 <div class="panel">
 <h2>対象月</h2>
 <div class="formgrid"><div><label>印刷・集計する月</label><input id="reportMonth" type="month" onchange="renderMonthly()"></div></div>
+<div id="monthlyCloseStatus" class="notice" style="margin-top:14px"></div>
+<div class="actions"><button id="monthlyCloseButton" class="btn primary" onclick="closeSelectedMonth()">月次締めを実行</button></div>
 </div>
 <div class="cards"><div class="card"><div class="k">月間売上</div><div class="v" id="mSales">¥0</div></div><div class="card"><div class="k">月間経費</div><div class="v" id="mExpense">¥0</div></div><div class="card"><div class="k">差引</div><div class="v" id="mProfit">¥0</div></div><div class="card"><div class="k">店販売上</div><div class="v" id="mRetail">¥0</div></div></div>
 <div class="panel"><h2>月次集計</h2><div id="monthlyDetail"></div><div class="actions"><button class="btn" onclick="showReport('summary')">表示</button><button class="btn primary" onclick="printMonthlyReport('summary')">印刷</button></div></div>
@@ -257,6 +259,7 @@ db.settings.storeAddress=db.settings.storeAddress||'';
 db.settings.taxRate=Number(db.settings.taxRate??10);
 db.settings.expenseCategories=db.settings.expenseCategories||['消耗品','給与','雑誌','水光熱','仕入','交際費','車','家賃','その他'];
 db.settings.payments=db.settings.payments||['現金','クレジットカード','電子マネー','QR決済','その他'];
+db.closings=db.closings||{};
 let legacyNo=1;
 db.sales.slice().reverse().forEach(s=>{if(s.no==null)s.no=legacyNo;legacyNo=Math.max(legacyNo,Number(s.no||0)+1)});
 let currentPosCategory='service';
@@ -418,6 +421,16 @@ function renderSales(){
   if(!el) return;
   el.innerHTML=makeTable(db.sales,['日付','摘要','総売','店販','支払'],r=>[r.date,esc(r.item),yen(r.total),yen(r.retail),esc(r.payment||'-')]);
 }
+function editSale(i){
+  const r=db.sales[i];if(!r)return;
+  const date=prompt('日付',r.date||'');if(date===null)return;
+  const item=prompt('摘要',r.item||'');if(item===null)return;
+  const total=prompt('総売上',r.total||0);if(total===null)return;
+  const retail=prompt('店販売上',r.retail||0);if(retail===null)return;
+  const payment=prompt('支払方法',r.payment||'現金');if(payment===null)return;
+  r.date=date.trim()||r.date;r.item=item.trim()||r.item;r.total=Math.max(0,Number(total||0));r.retail=Math.max(0,Math.min(r.total,Number(retail||0)));r.payment=payment.trim()||r.payment;r.manualEdited=true;save();
+}
+function deleteSale(i){if(confirm('この売上を削除しますか？')){db.sales.splice(i,1);save()}}
 function renderSettings(){
   if(!document.getElementById('setStoreName')) return;
   setStoreName.value=db.settings.storeName||'';
@@ -459,22 +472,81 @@ function deleteExpenseCategory(i){if(db.settings.expenseCategories.length<=1){al
 function addPaymentMethod(){const n=newPayment.value.trim();if(!n)return;if(!db.settings.payments.includes(n))db.settings.payments.push(n);newPayment.value='';save()}
 function deletePaymentMethod(i){if(db.settings.payments.length<=1){alert('支払方法は1つ以上必要です。');return}db.settings.payments.splice(i,1);save()}
 function addExpense(){const x={date:eDate.value,cat:eCat.value,memo:eMemo.value.trim(),amount:Number(eAmount.value)};if(!x.date||!x.memo||!x.amount){alert('日付・内容・金額を入力してください。');return}db.expenses.unshift(x);save();eMemo.value='';eAmount.value=''}
-function renderExpenses(){expenseTable.innerHTML=makeTable(db.expenses,['日付','分類','内容','金額'],r=>[r.date,'<span class="badge">'+esc(r.cat)+'</span>',esc(r.memo),yen(r.amount)])}
+function renderExpenses(){
+  expenseTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>日付</th><th>分類</th><th>内容</th><th class="num">金額</th><th>操作</th></tr></thead><tbody>'+
+  db.expenses.map((r,i)=>'<tr><td>'+esc(r.date)+'</td><td><span class="badge">'+esc(r.cat)+'</span></td><td>'+esc(r.memo)+'</td><td class="num">'+yen(r.amount)+'</td><td><button class="btn" onclick="editExpense('+i+')">修正</button> <button class="btn danger" onclick="deleteExpense('+i+')">削除</button></td></tr>').join('')+
+  '</tbody></table></div>';
+}
+function editExpense(i){
+  const r=db.expenses[i]; if(!r)return;
+  const date=prompt('日付',r.date); if(date===null)return;
+  const cat=prompt('分類',r.cat); if(cat===null)return;
+  const memo=prompt('内容',r.memo); if(memo===null)return;
+  const amount=prompt('金額',r.amount); if(amount===null)return;
+  r.date=date.trim()||r.date;r.cat=cat.trim()||r.cat;r.memo=memo.trim()||r.memo;r.amount=Math.max(0,Number(amount||0));save();
+}
+function deleteExpense(i){if(confirm('この経費を削除しますか？')){db.expenses.splice(i,1);save()}}
 function addInventory(){const x={name:iName.value.trim(),price:Number(iPrice.value),qty:Number(iQty.value)};if(!x.name||!x.price){alert('品名・単価を入力してください。');return}db.inventory.push(x);save();iName.value='';iPrice.value='';iQty.value=1}
 function changeQty(i,d){db.inventory[i].qty=Math.max(0,Number(db.inventory[i].qty)+d);save()}
-function renderInventory(){inventoryTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>品名</th><th class="num">単価</th><th class="num">数量</th><th class="num">合計</th><th>操作</th></tr></thead><tbody>'+db.inventory.map((r,i)=>'<tr><td>'+esc(r.name)+'</td><td class="num">'+yen(r.price)+'</td><td class="num">'+r.qty+'</td><td class="num">'+yen(r.price*r.qty)+'</td><td><button class="btn" onclick="changeQty('+i+',-1)">−</button> <button class="btn" onclick="changeQty('+i+',1)">＋</button></td></tr>').join('')+'</tbody></table></div>'}
+function renderInventory(){inventoryTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>品名</th><th class="num">単価</th><th class="num">数量</th><th class="num">合計</th><th>操作</th></tr></thead><tbody>'+db.inventory.map((r,i)=>'<tr><td>'+esc(r.name)+'</td><td class="num">'+yen(r.price)+'</td><td class="num">'+r.qty+'</td><td class="num">'+yen(Number(r.price||0)*Number(r.qty||0))+'</td><td><button class="btn" onclick="changeQty('+i+',-1)">−</button> <button class="btn" onclick="changeQty('+i+',1)">＋</button> <button class="btn" onclick="editInventory('+i+')">修正</button> <button class="btn danger" onclick="deleteInventory('+i+')">削除</button></td></tr>').join('')+'</tbody></table></div>'}
+function editInventory(i){
+  const r=db.inventory[i];if(!r)return;
+  const name=prompt('品名',r.name);if(name===null)return;
+  const price=prompt('単価',r.price);if(price===null)return;
+  const qty=prompt('数量',r.qty);if(qty===null)return;
+  r.name=name.trim()||r.name;r.price=Math.max(0,Number(price||0));r.qty=Math.max(0,Number(qty||0));save();
+}
+function deleteInventory(i){if(confirm('この在庫商品を削除しますか？')){db.inventory.splice(i,1);save()}}
 function addEvent(){const x={date:cDate.value,title:cTitle.value.trim()};if(!x.date||!x.title){alert('日付・予定を入力してください。');return}db.events.push(x);save();cTitle.value=''}
-function renderHome(){const ts=db.sales.filter(x=>x.date===today()).reduce((a,b)=>a+b.total,0),ms=db.sales.filter(x=>x.date.startsWith(ym())).reduce((a,b)=>a+b.total,0),me=db.expenses.filter(x=>x.date.startsWith(ym())).reduce((a,b)=>a+b.amount,0),iv=db.inventory.reduce((a,b)=>a+b.price*b.qty,0);todaySales.textContent=yen(ts);monthSales.textContent=yen(ms);monthExp.textContent=yen(me);invValue.textContent=yen(iv);recentSales.innerHTML=db.sales.length?db.sales.slice(0,6).map(x=>'<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #eee"><span>'+esc(x.item)+' <span class="sub">'+x.date+'</span></span><b>'+yen(x.total)+'</b></div>').join(''):'売上はありません';const ev=db.events.filter(x=>x.date===today());todayEvents.innerHTML=ev.length?ev.map(x=>'<div class="badge" style="margin:4px">'+esc(x.title)+'</div>').join(''):'予定はありません'}
+function renderHome(){
+  const ts=db.sales.filter(x=>x.date===today()).reduce((a,b)=>a+Number(b.total||0),0),
+        ms=db.sales.filter(x=>x.date&&x.date.startsWith(ym())).reduce((a,b)=>a+Number(b.total||0),0),
+        me=db.expenses.filter(x=>x.date&&x.date.startsWith(ym())).reduce((a,b)=>a+Number(b.amount||0),0),
+        iv=db.inventory.reduce((a,b)=>a+Number(b.price||0)*Number(b.qty||0),0);
+  todaySales.textContent=yen(ts);monthSales.textContent=yen(ms);monthExp.textContent=yen(me);invValue.textContent=yen(iv);
+  const el=document.getElementById('homeSalesTable'); if(!el)return;
+  const rows=db.sales.map((r,i)=>({...r,_i:i}));
+  el.innerHTML='<div class="tablewrap"><table><thead><tr><th>No.</th><th>日付</th><th>摘要</th><th class="num">総売</th><th class="num">店販</th><th>支払</th><th>操作</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td>'+esc(r.no||'')+'</td><td>'+esc(r.date||'')+'</td><td>'+esc(r.item||'')+'</td><td class="num">'+yen(r.total)+'</td><td class="num">'+yen(r.retail)+'</td><td>'+esc(r.payment||'-')+'</td><td><button class="btn" onclick="editSale('+r._i+')">修正</button> <button class="btn danger" onclick="deleteSale('+r._i+')">削除</button></td></tr>').join('')+
+    '</tbody></table></div>';
+}
 function renderCalendar(){const d=new Date(),y=d.getFullYear(),m=d.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0);calTitle.textContent=y+'年'+(m+1)+'月';let a=[];for(let i=0;i<first.getDay();i++)a.push('<div></div>');for(let day=1;day<=last.getDate();day++){const ds=y+'-'+pad(m+1)+'-'+pad(day),ev=db.events.filter(x=>x.date===ds);a.push('<div class="day"><div class="d">'+day+'</div>'+ev.map(x=>'<div class="e">'+esc(x.title)+'</div>').join('')+'</div>')}calendarGrid.innerHTML=a.join('')}
 function selectedYm(){const el=document.getElementById('reportMonth');return el&&el.value?el.value:ym()}
+function liveMonthData(target){
+  return {
+    sales:db.sales.filter(x=>x.date&&x.date.startsWith(target)),
+    expenses:db.expenses.filter(x=>x.date&&x.date.startsWith(target)),
+    inventory:db.inventory
+  };
+}
+function monthData(target){
+  const closed=db.closings&&db.closings[target];
+  return closed?{sales:closed.sales||[],expenses:closed.expenses||[],inventory:closed.inventory||[],closedAt:closed.closedAt}:liveMonthData(target);
+}
+function closeSelectedMonth(){
+  const target=selectedYm(),existing=db.closings[target];
+  if(existing&&!confirm(target+' は締め済みです。現在の売上・経費・在庫で締め直しますか？'))return;
+  if(!existing&&!confirm(target+' の売上・経費・在庫を締めて確定しますか？'))return;
+  const live=liveMonthData(target);
+  db.closings[target]={
+    closedAt:new Date().toISOString(),
+    sales:JSON.parse(JSON.stringify(live.sales)),
+    expenses:JSON.parse(JSON.stringify(live.expenses)),
+    inventory:JSON.parse(JSON.stringify(db.inventory))
+  };
+  save();renderMonthly();
+}
 function renderMonthly(){
-  const target=selectedYm(),s=db.sales.filter(x=>x.date&&x.date.startsWith(target)),e=db.expenses.filter(x=>x.date&&x.date.startsWith(target));
+  const target=selectedYm(),data=monthData(target),s=data.sales,e=data.expenses;
   const st=s.reduce((a,b)=>a+Number(b.total||0),0),rt=s.reduce((a,b)=>a+Number(b.retail||0),0),et=e.reduce((a,b)=>a+Number(b.amount||0),0);
   mSales.textContent=yen(st);mExpense.textContent=yen(et);mProfit.textContent=yen(st-et);mRetail.textContent=yen(rt);
   const by={},pay={};
   e.forEach(x=>by[x.cat]=(by[x.cat]||0)+Number(x.amount||0));
   s.forEach(x=>pay[x.payment||'未設定']=(pay[x.payment||'未設定']||0)+Number(x.total||0));
   monthlyDetail.innerHTML='<p><b>'+esc(target)+'</b> の集計</p><div class="grid2"><div><h3>経費分類別</h3>'+simpleKeyValue(by)+'</div><div><h3>支払方法別</h3>'+simpleKeyValue(pay)+'</div></div>';
+  const closed=db.closings&&db.closings[target],status=document.getElementById('monthlyCloseStatus'),btn=document.getElementById('monthlyCloseButton');
+  if(status)status.innerHTML=closed?'締め済み：'+new Date(closed.closedAt).toLocaleString('ja-JP')+'<br>この月の帳票は締め時点の売上・経費・在庫を使用します。':'未締め：現在の売上・経費・在庫を表示しています。';
+  if(btn)btn.textContent=closed?'月次締めをやり直す':'月次締めを実行';
 }
 function simpleKeyValue(obj){
   const entries=Object.entries(obj); if(!entries.length)return '<div class="notice">該当データはありません。</div>';
@@ -485,10 +557,10 @@ function reportTitle(type){
   return {summary:'月次集計',sales:'売上一覧',expenses:'経費一覧',inventory:'在庫一覧',calendar:'管理用カレンダー',customer:'お客様配布用カレンダー'}[type]||'帳票';
 }
 function reportSalesRows(target){
-  return db.sales.filter(x=>x.date&&x.date.startsWith(target)).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||Number(a.no||0)-Number(b.no||0));
+  return monthData(target).sales.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||Number(a.no||0)-Number(b.no||0));
 }
 function buildReport(type){
-  const target=selectedYm(),sales=reportSalesRows(target),expenses=db.expenses.filter(x=>x.date&&x.date.startsWith(target)).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const target=selectedYm(),data=monthData(target),sales=data.sales.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||Number(a.no||0)-Number(b.no||0)),expenses=data.expenses.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')),inventory=data.inventory||[];
   if(type==='summary'){
     const st=sales.reduce((a,b)=>a+Number(b.total||0),0),rt=sales.reduce((a,b)=>a+Number(b.retail||0),0),et=expenses.reduce((a,b)=>a+Number(b.amount||0),0),by={},pay={};
     expenses.forEach(x=>by[x.cat]=(by[x.cat]||0)+Number(x.amount||0));sales.forEach(x=>pay[x.payment||'未設定']=(pay[x.payment||'未設定']||0)+Number(x.total||0));
@@ -496,8 +568,8 @@ function buildReport(type){
   }
   if(type==='sales'){
     const rows=sales.flatMap(r=>{
-      const items=(r.items&&r.items.length?r.items:[{name:r.item,qty:1,price:r.total,category:Number(r.retail||0)>0?'retail':'service'}]);
-      return items.map((it,idx)=>({no:r.no,date:r.date,item:it.name,qty:it.qty||1,amount:Number(it.price||0)*(it.qty||1),retail:it.category==='retail'?Number(it.price||0)*(it.qty||1):0,payment:r.payment||'-',slip:r.slip||'-',first:idx===0}));
+      const items=r.manualEdited?[{name:r.item,qty:1,price:r.total,category:'manual'}]:(r.items&&r.items.length?r.items:[{name:r.item,qty:1,price:r.total,category:Number(r.retail||0)>0?'retail':'service'}]);
+      return items.map((it,idx)=>({no:r.no,date:r.date,item:it.name,qty:it.qty||1,amount:Number(it.price||0)*(it.qty||1),retail:r.manualEdited?Number(r.retail||0):(it.category==='retail'?Number(it.price||0)*(it.qty||1):0),payment:r.payment||'-',slip:r.slip||'-',first:idx===0}));
     });
     return '<h2>'+esc(target)+' 売上一覧</h2>'+reportTable(['No.','日付','内容','数量','金額','店販','支払方法','伝票番号'],rows.map(x=>[x.first?x.no:'',x.first?x.date:'',esc(x.item),x.qty,yen(x.amount),yen(x.retail),x.first?esc(x.payment):'',x.first?esc(x.slip):'']));
   }
@@ -505,7 +577,7 @@ function buildReport(type){
     return '<h2>'+esc(target)+' 経費一覧</h2>'+reportTable(['日付','分類','内容','金額'],expenses.map(x=>[x.date,esc(x.cat),esc(x.memo),yen(x.amount)]));
   }
   if(type==='inventory'){
-    return '<h2>'+esc(target)+' 在庫一覧</h2>'+reportTable(['品名','単価','数量','在庫金額'],db.inventory.map(x=>[esc(x.name),yen(x.price),x.qty,yen(Number(x.price||0)*Number(x.qty||0))]));
+    return '<h2>'+esc(target)+' 在庫一覧</h2>'+reportTable(['品名','単価','数量','在庫金額'],inventory.map(x=>[esc(x.name),yen(x.price),x.qty,yen(Number(x.price||0)*Number(x.qty||0))]));
   }
   if(type==='calendar') return '<h2>'+esc(target)+' 管理用カレンダー</h2>'+buildMonthCalendarHtml(target,true);
   return '';
@@ -531,11 +603,12 @@ function closeReport(){reportModal.classList.add('hidden')}
 function printCurrentReport(){if(currentReportType==='customer')printCustomerCalendar();else printMonthlyReport(currentReportType)}
 function printMonthlyReport(type){
   const html=buildReport(type),title=reportTitle(type)+' '+selectedYm();
-  openPrintWindow(title,html);
+  const landscape=type==='sales'||type==='expenses';
+  openPrintWindow(title,html,'',landscape?'A4 landscape':'A4 portrait','10mm');
 }
-function openPrintWindow(title,html,extraCss=''){
+function openPrintWindow(title,html,extraCss='',pageSize='A4 portrait',margin='12mm'){
   const w=window.open('','_blank','width=1000,height=800');if(!w){alert('印刷画面を開けませんでした。');return}
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>@page{size:A4 portrait;margin:12mm}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;color:#111;font-size:11px}h2{margin:0 0 10px}h3{margin:16px 0 6px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #777;padding:5px;text-align:left}th{background:#eee}.num{text-align:right}.monthcal{table-layout:fixed}.monthcal td{height:24mm;vertical-align:top}.monthcal .closed{background:#ffd6d6}.monthcal .sun{color:#c00}.monthcal .sat{color:#06c}.ev{font-size:9px;margin-top:4px}'+extraCss+'</style></head><body>'+html+'</body></html>');
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>@page{size:'+pageSize+';margin:'+margin+'}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;color:#111;font-size:11px}h2{margin:0 0 10px}h3{margin:16px 0 6px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #777;padding:5px;text-align:left}th{background:#eee}.num{text-align:right}.monthcal{table-layout:fixed}.monthcal td{height:24mm;vertical-align:top}.monthcal .closed{background:#ffd6d6}.monthcal .sun{color:#c00}.monthcal .sat{color:#06c}.ev{font-size:9px;margin-top:4px}'+extraCss+'</style></head><body>'+html+'</body></html>');
   w.document.close();setTimeout(()=>w.print(),250);
 }
 function customerCalendarBlock(target){
@@ -550,8 +623,8 @@ function showCustomerCalendar(){
   currentReportType='customer';reportModalTitle.textContent='お客様配布用カレンダー プレビュー';reportPreview.innerHTML=buildCustomerCalendarSheet();reportModal.classList.remove('hidden');
 }
 function printCustomerCalendar(){
-  const css='@page{size:A4 portrait;margin:5mm 10mm}body{margin:0}.customerSheet{width:190mm;margin:0 auto}.customerBlock{height:54mm;box-sizing:border-box;overflow:hidden}.cutgap{height:1.5mm;border-top:0.2mm dashed #aaa}.pair{display:grid;grid-template-columns:1fr 1fr;gap:5mm}.mini .mh{height:7mm;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;text-align:center;font-size:9px}.mini .mh b{font-size:15px}.customerBlock .monthcal{font-size:8px;table-layout:fixed}.customerBlock .monthcal th,.customerBlock .monthcal td{padding:0;text-align:center;border:0;height:5.2mm;vertical-align:middle}.customerBlock .monthcal .closed{background:#ffb3b3}.shopline{height:7mm;display:flex;justify-content:space-around;align-items:center;font-size:11px;font-weight:700}.customerBlock .ev{display:none}';
-  openPrintWindow('お客様配布用カレンダー '+selectedYm(),buildCustomerCalendarSheet(),css);
+  const css='body{margin:0}.customerSheet{width:170mm;margin:0 auto}.customerBlock{height:54mm;box-sizing:border-box;overflow:hidden}.cutgap{height:1.5mm;border-top:0.2mm dashed #aaa}.pair{display:grid;grid-template-columns:1fr 1fr;gap:5mm}.mini .mh{height:7mm;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;text-align:center;font-size:9px}.mini .mh b{font-size:15px}.customerBlock .monthcal{font-size:8px;table-layout:fixed}.customerBlock .monthcal th,.customerBlock .monthcal td{padding:0;text-align:center;border:0;height:5.2mm;vertical-align:middle}.customerBlock .monthcal .closed{background:#ffb3b3}.shopline{height:7mm;display:flex;justify-content:space-around;align-items:center;font-size:11px;font-weight:700}.customerBlock .ev{display:none}';
+  openPrintWindow('お客様配布用カレンダー '+selectedYm(),buildCustomerCalendarSheet(),css,'A4 portrait','5mm 20mm');
 }
 function makeTable(rows,heads,map){return '<div class="tablewrap"><table><thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+map(r).map((v,i)=>'<td class="'+(i>=2?'num':'')+'">'+v+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}
 function openOther(){otherCategory=currentPosCategory;const h=otherModal.querySelector('h3');if(h)h.textContent=(otherCategory==='retail'?'店販':'施術')+'・その他';otherModal.classList.remove('hidden');otherName.focus()}function closeOther(){otherModal.classList.add('hidden');otherName.value='';otherPrice.value=''}
