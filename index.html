@@ -285,7 +285,7 @@ function setDefaults(){
   const rm=document.getElementById('reportMonth'); if(rm&&!rm.value) rm.value=ym();
 }
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(b.dataset.page).classList.remove('hidden');const titles={home:'ホーム',sales:'売上・POS',expenses:'経費',inventory:'在庫',calendar:'カレンダー',monthly:'月次・印刷',settings:'設定'};document.getElementById('pageTitle').textContent=titles[b.dataset.page];renderAll()});
-function renderAll(){setDefaults();renderPos();renderCart();renderSales();renderExpenses();renderInventory();renderHome();renderCalendar();renderMonthly();renderSettings()}
+function renderAll(){renderPos();renderCart();renderSales();renderExpenses();renderInventory();renderHome();renderCalendar();renderMonthly();renderSettings()}
 function setPosCategory(cat){
   currentPosCategory=cat;
   catService.className='btn'+(cat==='service'?' primary':'');
