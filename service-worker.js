@@ -1,4 +1,4 @@
-const CACHE='store-management-demo-v16';
+const CACHE='store-management-demo-v17';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg'];
 
 self.addEventListener('install',event=>{
