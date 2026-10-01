@@ -80,7 +80,13 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 
 <section id="sales" class="page hidden">
 <div class="grid2">
-<div class="panel"><h2>POS入力</h2><div class="posgrid" id="posGrid"></div><div class="actions"><button class="btn" onclick="openOther()">その他</button></div></div>
+<div class="panel"><h2>POS入力</h2>
+<div class="actions" style="margin-top:0;margin-bottom:14px">
+  <button id="catService" class="btn primary" onclick="setPosCategory('service')">施術</button>
+  <button id="catRetail" class="btn" onclick="setPosCategory('retail')">店販</button>
+</div>
+<div class="posgrid" id="posGrid"></div>
+<div class="actions"><button class="btn" onclick="openOther()">その他</button></div></div>
 <div class="panel"><h2>売上入力</h2><div class="formgrid">
 <div><label>日付</label><input id="sDate" type="date"></div><div><label>摘要</label><input id="sItem" placeholder="例：カット"></div>
 <div><label>総売</label><input id="sTotal" type="number" inputmode="numeric" oninput="updateChange()"></div><div><label>店販</label><input id="sRetail" type="number" inputmode="numeric" value="0"></div>
@@ -127,18 +133,36 @@ const ym=()=>today().slice(0,7);
 const yen=n=>'¥'+Number(n||0).toLocaleString('ja-JP');
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function seed(){return{
-pos:[{name:'カット',price:4500},{name:'カラー',price:7000},{name:'パーマ',price:8000},{name:'シャンプー',price:1800},{name:'トリートメント',price:3000},{name:'店販商品',price:2500}],
+pos:[
+{name:'カット',price:4500,category:'service'},
+{name:'カラー',price:7000,category:'service'},
+{name:'パーマ',price:8000,category:'service'},
+{name:'シャンプー',price:1800,category:'service'},
+{name:'トリートメント',price:3000,category:'service'},
+{name:'店販商品',price:2500,category:'retail'}
+],
 sales:[{date:today(),item:'カット',total:4500,retail:0},{date:today(),item:'カラー',total:7000,retail:0},{date:today(),item:'店販商品',total:2500,retail:2500}],
 expenses:[{date:today(),cat:'仕入',memo:'デモ仕入',amount:3200}],
 inventory:[{name:'シャンプーA',price:2200,qty:6},{name:'トリートメントB',price:2800,qty:4},{name:'スタイリング剤C',price:1800,qty:5}],
 events:[{date:today(),title:'デモ営業日'}]}}
 let db;try{db=JSON.parse(localStorage.getItem(KEY))||seed()}catch(e){db=seed()}
+db.pos=db.pos.map(p=>({...p,category:p.category||(p.name.includes('店販')?'retail':'service')}));
+let currentPosCategory='service';
 function save(){localStorage.setItem(KEY,JSON.stringify(db));renderAll()}
 function setDefaults(){['sDate','eDate','cDate'].forEach(id=>document.getElementById(id).value=today())}
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(b.dataset.page).classList.remove('hidden');const titles={home:'ホーム',sales:'売上・POS',expenses:'経費',inventory:'在庫',calendar:'カレンダー',monthly:'月次・印刷'};document.getElementById('pageTitle').textContent=titles[b.dataset.page];renderAll()});
 function renderAll(){renderPos();renderSales();renderExpenses();renderInventory();renderHome();renderCalendar();renderMonthly()}
-function renderPos(){posGrid.innerHTML=db.pos.map((p,i)=>'<button class="posbtn" onclick="selectPos('+i+')">'+esc(p.name)+'<br><span class="sub">'+yen(p.price)+'</span></button>').join('')}
-function selectPos(i){const p=db.pos[i];sItem.value=p.name;sTotal.value=p.price;sRetail.value=p.name.includes('店販')?p.price:0;if(sPayment.value==='現金'&&!sReceived.value)sReceived.value=p.price;updateChange()}
+function setPosCategory(cat){
+  currentPosCategory=cat;
+  catService.className='btn'+(cat==='service'?' primary':'');
+  catRetail.className='btn'+(cat==='retail'?' primary':'');
+  renderPos();
+}
+function renderPos(){
+  const items=db.pos.map((p,i)=>({...p,_i:i})).filter(p=>p.category===currentPosCategory);
+  posGrid.innerHTML=items.length?items.map(p=>'<button class="posbtn" onclick="selectPos('+p._i+')">'+esc(p.name)+'<br><span class="sub">'+yen(p.price)+'</span></button>').join(''):'<div class="notice full">この区分の商品はまだ登録されていません。</div>';
+}
+function selectPos(i){const p=db.pos[i];sItem.value=p.name;sTotal.value=p.price;sRetail.value=p.category==='retail'?p.price:0;if(sPayment.value==='現金'&&!sReceived.value)sReceived.value=p.price;updateChange()}
 function addSale(){const x={date:sDate.value,item:sItem.value.trim(),total:Number(sTotal.value),retail:Number(sRetail.value||0),payment:sPayment.value};if(!x.date||!x.item||!x.total){alert('日付・摘要・総売を入力してください。');return}db.sales.unshift(x);save();clearSaleForm()}
 function clearSaleForm(){sItem.value='';sTotal.value='';sRetail.value=0;sReceived.value='';sPayment.value='現金';updateChange()}
 function paymentChanged(){if(sPayment.value!=='現金'){sReceived.value=sTotal.value||''}updateChange()}
@@ -159,11 +183,11 @@ function renderCalendar(){const d=new Date(),y=d.getFullYear(),m=d.getMonth(),fi
 function renderMonthly(){const s=db.sales.filter(x=>x.date.startsWith(ym())),e=db.expenses.filter(x=>x.date.startsWith(ym())),st=s.reduce((a,b)=>a+b.total,0),rt=s.reduce((a,b)=>a+b.retail,0),et=e.reduce((a,b)=>a+b.amount,0);mSales.textContent=yen(st);mExpense.textContent=yen(et);mProfit.textContent=yen(st-et);mRetail.textContent=yen(rt);const by={};e.forEach(x=>by[x.cat]=(by[x.cat]||0)+x.amount);monthlyDetail.innerHTML='<p><b>'+ym()+'</b> の集計</p><div class="tablewrap"><table><thead><tr><th>経費分類</th><th class="num">金額</th></tr></thead><tbody>'+Object.entries(by).map(([k,v])=>'<tr><td>'+esc(k)+'</td><td class="num">'+yen(v)+'</td></tr>').join('')+'</tbody></table></div>'}
 function makeTable(rows,heads,map){return '<div class="tablewrap"><table><thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+map(r).map((v,i)=>'<td class="'+(i>=2?'num':'')+'">'+v+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}
 function openOther(){otherModal.classList.remove('hidden');otherName.focus()}function closeOther(){otherModal.classList.add('hidden');otherName.value='';otherPrice.value=''}
-function useOther(register){const n=otherName.value.trim(),p=Number(otherPrice.value);if(!n||!p){alert('内容と金額を入力してください。');return}if(register&&!db.pos.some(x=>x.name===n))db.pos.push({name:n,price:p});sItem.value=n;sTotal.value=p;save();closeOther()}
+function useOther(register){const n=otherName.value.trim(),p=Number(otherPrice.value);if(!n||!p){alert('内容と金額を入力してください。');return}if(register&&!db.pos.some(x=>x.name===n))db.pos.push({name:n,price:p,category:currentPosCategory});sItem.value=n;sTotal.value=p;sRetail.value=currentPosCategory==='retail'?p:0;save();closeOther()}
 function exportData(){const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='店舗管理デモ_バックアップ.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 function resetDemo(){if(confirm('デモデータを初期状態に戻しますか？')){db=seed();save();setDefaults()}}
 function updateOnline(){offlineStatus.textContent=navigator.onLine?'オフライン対応':'オフライン稼働中'}window.addEventListener('online',updateOnline);window.addEventListener('offline',updateOnline);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
-setDefaults();updateOnline();updateChange();renderAll();
+setDefaults();updateOnline();updateChange();setPosCategory('service');renderAll();
 </script>
 </body></html>
