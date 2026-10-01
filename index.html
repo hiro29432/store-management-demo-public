@@ -282,20 +282,29 @@ function renderCart(){
   updateChange();
 }
 function changeCartQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);renderCart()}
-let priceEditIndex=-1,priceKeypadValue='',priceOriginalValue=0;
+let priceEditIndex=-1,priceKeypadValue='',priceOriginalValue=0,priceKeypadFresh=false;
 function openPriceKeypad(i){
   priceEditIndex=i;
   const item=cart[i];
   if(item&&item.basePrice==null) item.basePrice=Number(item.price||0);
   priceOriginalValue=Number(item?.basePrice??item?.price??0);
   priceKeypadValue=String(item?.price??'').replace(/\D/g,'');
+  priceKeypadFresh=true;
   renderPriceKeypad();
   priceKeypadModal.classList.remove('hidden');
 }
 function priceKey(k){
-  if(k==='clear') priceKeypadValue=String(priceOriginalValue);
-  else if(k==='back') priceKeypadValue=priceKeypadValue.slice(0,-1);
+  if(k==='clear'){
+    priceKeypadValue=String(priceOriginalValue);
+    priceKeypadFresh=true;
+  }
+  else if(k==='back'){
+    priceKeypadValue=priceKeypadValue.slice(0,-1);
+    priceKeypadFresh=false;
+  }
   else {
+    if(priceKeypadFresh) priceKeypadValue='';
+    priceKeypadFresh=false;
     if(priceKeypadValue==='0') priceKeypadValue='';
     priceKeypadValue=(priceKeypadValue+k).replace(/^0+(?=\d)/,'').slice(0,9);
   }
@@ -309,6 +318,7 @@ function closePriceKeypad(apply=false){
   }
   priceEditIndex=-1;
   priceOriginalValue=0;
+  priceKeypadFresh=false;
   priceKeypadModal.classList.add('hidden');
 }
 function removeCartItem(i){cart.splice(i,1);renderCart()}
