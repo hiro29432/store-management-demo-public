@@ -40,6 +40,9 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 .notice{padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1e40af;font-size:13px;margin-bottom:12px}
 .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.day{background:#fff;border:1px solid var(--line);border-radius:10px;min-height:92px;padding:8px}.day .d{font-weight:800;font-size:13px}.day .e{font-size:11px;margin-top:6px;color:#334155}
 .status{font-size:12px;padding:7px 10px;border-radius:999px;background:#ecfdf5;color:#166534;font-weight:700}
+.receipt{width:80mm;max-width:100%;margin:auto;background:#fff;color:#111;padding:8mm 6mm;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5}
+.receipt h3{text-align:center;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;margin:0 0 4px;font-size:18px}
+.receipt .center{text-align:center}.receipt .rule{border-top:1px dashed #111;margin:8px 0}.receipt .row{display:flex;justify-content:space-between;gap:12px}.receipt .total{font-size:16px;font-weight:800}
 @media(max-width:900px){.app{grid-template-columns:1fr}.side{position:sticky;top:0;z-index:5;padding:8px;display:block}.brand{display:none}.nav{flex-direction:row;overflow:auto}.nav button{white-space:nowrap;padding:10px 12px}.foot{display:none}.main{padding:14px}.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
 @media(max-width:600px){.formgrid{grid-template-columns:1fr}.posgrid{grid-template-columns:repeat(2,1fr)}.title{font-size:23px}}
 @media print{.side,.top .actions,.btn,.posgrid,.formgrid{display:none!important}.app{display:block}.main{padding:0}.panel,.card{box-shadow:none}}
@@ -80,8 +83,11 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 <div class="panel"><h2>POS入力</h2><div class="posgrid" id="posGrid"></div><div class="actions"><button class="btn" onclick="openOther()">その他</button></div></div>
 <div class="panel"><h2>売上入力</h2><div class="formgrid">
 <div><label>日付</label><input id="sDate" type="date"></div><div><label>摘要</label><input id="sItem" placeholder="例：カット"></div>
-<div><label>総売</label><input id="sTotal" type="number" inputmode="numeric"></div><div><label>店販</label><input id="sRetail" type="number" inputmode="numeric" value="0"></div>
-</div><div class="actions"><button class="btn primary" onclick="addSale()">売上を登録</button></div></div>
+<div><label>総売</label><input id="sTotal" type="number" inputmode="numeric" oninput="updateChange()"></div><div><label>店販</label><input id="sRetail" type="number" inputmode="numeric" value="0"></div>
+<div><label>支払方法</label><select id="sPayment" onchange="paymentChanged()"><option>現金</option><option>クレジットカード</option><option>電子マネー</option><option>QR決済</option><option>その他</option></select></div>
+<div><label>預り金</label><input id="sReceived" type="number" inputmode="numeric" oninput="updateChange()" placeholder="現金時のみ"></div>
+<div class="full"><div class="notice" id="changeBox">お釣り：¥0</div></div>
+</div><div class="actions"><button class="btn" onclick="addSale()">売上だけ登録</button><button class="btn primary" onclick="checkout()">会計確定・レシート</button></div></div>
 </div><div class="panel"><h2>売上一覧</h2><div id="salesTable"></div></div>
 </section>
 
@@ -109,6 +115,8 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 </section>
 </main></div>
 
+<div id="receiptModal" class="modal hidden"><div class="dialog" style="width:min(620px,100%)"><h3>レシートプレビュー</h3><div id="receiptPreview"></div><div class="actions"><button class="btn" onclick="closeReceipt()">閉じる</button><button class="btn primary" onclick="printReceipt()">印刷</button></div></div></div>
+
 <div id="otherModal" class="modal hidden"><div class="dialog"><h3>その他売上</h3><div class="notice">入力した内容を今回だけ使用するか、POSメニューへ登録できます。</div><label>内容</label><input id="otherName" placeholder="例：ヘッドスパ"><label style="margin-top:10px">金額</label><input id="otherPrice" type="number" inputmode="numeric"><div class="actions"><button class="btn" onclick="closeOther()">キャンセル</button><button class="btn" onclick="useOther(false)">今回だけ使用</button><button class="btn primary" onclick="useOther(true)">POSへ登録して使用</button></div></div></div>
 
 <script>
@@ -130,9 +138,16 @@ function setDefaults(){['sDate','eDate','cDate'].forEach(id=>document.getElement
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(b.dataset.page).classList.remove('hidden');const titles={home:'ホーム',sales:'売上・POS',expenses:'経費',inventory:'在庫',calendar:'カレンダー',monthly:'月次・印刷'};document.getElementById('pageTitle').textContent=titles[b.dataset.page];renderAll()});
 function renderAll(){renderPos();renderSales();renderExpenses();renderInventory();renderHome();renderCalendar();renderMonthly()}
 function renderPos(){posGrid.innerHTML=db.pos.map((p,i)=>'<button class="posbtn" onclick="selectPos('+i+')">'+esc(p.name)+'<br><span class="sub">'+yen(p.price)+'</span></button>').join('')}
-function selectPos(i){const p=db.pos[i];sItem.value=p.name;sTotal.value=p.price;sRetail.value=p.name.includes('店販')?p.price:0}
-function addSale(){const x={date:sDate.value,item:sItem.value.trim(),total:Number(sTotal.value),retail:Number(sRetail.value||0)};if(!x.date||!x.item||!x.total){alert('日付・摘要・総売を入力してください。');return}db.sales.unshift(x);save();sItem.value='';sTotal.value='';sRetail.value=0}
-function renderSales(){salesTable.innerHTML=makeTable(db.sales,['日付','摘要','総売','店販'],r=>[r.date,esc(r.item),yen(r.total),yen(r.retail)])}
+function selectPos(i){const p=db.pos[i];sItem.value=p.name;sTotal.value=p.price;sRetail.value=p.name.includes('店販')?p.price:0;if(sPayment.value==='現金'&&!sReceived.value)sReceived.value=p.price;updateChange()}
+function addSale(){const x={date:sDate.value,item:sItem.value.trim(),total:Number(sTotal.value),retail:Number(sRetail.value||0),payment:sPayment.value};if(!x.date||!x.item||!x.total){alert('日付・摘要・総売を入力してください。');return}db.sales.unshift(x);save();clearSaleForm()}
+function clearSaleForm(){sItem.value='';sTotal.value='';sRetail.value=0;sReceived.value='';sPayment.value='現金';updateChange()}
+function paymentChanged(){if(sPayment.value!=='現金'){sReceived.value=sTotal.value||''}updateChange()}
+function updateChange(){const total=Number(sTotal.value||0),received=Number(sReceived.value||0);const change=sPayment.value==='現金'?Math.max(0,received-total):0;changeBox.textContent='お釣り：'+yen(change)}
+function checkout(){const date=sDate.value,item=sItem.value.trim(),total=Number(sTotal.value),retail=Number(sRetail.value||0),payment=sPayment.value,received=Number(sReceived.value||0);if(!date||!item||!total){alert('日付・摘要・総売を入力してください。');return}if(payment==='現金'&&received<total){alert('預り金が合計金額を下回っています。');return}const now=new Date();const slip='D'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds());const sale={date,item,total,retail,payment,received:payment==='現金'?received:total,change:payment==='現金'?received-total:0,slip,time:pad(now.getHours())+':'+pad(now.getMinutes())};db.sales.unshift(sale);save();showReceipt(sale);clearSaleForm()}
+function showReceipt(r){const tax=Math.round(r.total*10/110),subtotal=r.total-tax;receiptPreview.innerHTML='<div class="receipt"><h3>店舗管理デモ</h3><div class="center">RECEIPT</div><div class="rule"></div><div>'+esc(r.date)+' '+esc(r.time||'')+'</div><div>伝票番号 '+esc(r.slip||'-')+'</div><div class="rule"></div><div class="row"><span>'+esc(r.item)+'</span><span>'+yen(r.total)+'</span></div><div class="rule"></div><div class="row"><span>税抜</span><span>'+yen(subtotal)+'</span></div><div class="row"><span>消費税(10%)</span><span>'+yen(tax)+'</span></div><div class="row total"><span>合計</span><span>'+yen(r.total)+'</span></div><div class="rule"></div><div class="row"><span>支払方法</span><span>'+esc(r.payment||'現金')+'</span></div><div class="row"><span>お預り</span><span>'+yen(r.received??r.total)+'</span></div><div class="row"><span>お釣り</span><span>'+yen(r.change||0)+'</span></div><div class="rule"></div><div class="center">ありがとうございました</div></div>';receiptModal.classList.remove('hidden')}
+function closeReceipt(){receiptModal.classList.add('hidden')}
+function printReceipt(){const html=receiptPreview.innerHTML;const w=window.open('','_blank','width=420,height=720');if(!w){alert('印刷画面を開けませんでした。');return}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>レシート</title><style>@page{size:80mm auto;margin:0}body{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.receipt{width:68mm;padding:6mm;font-size:12px;line-height:1.5}.receipt h3{text-align:center;font-family:sans-serif;margin:0 0 4px}.center{text-align:center}.rule{border-top:1px dashed #111;margin:8px 0}.row{display:flex;justify-content:space-between;gap:12px}.total{font-size:16px;font-weight:800}</style></head><body>'+html+'</body></html>');w.document.close();setTimeout(()=>w.print(),250)}
+function renderSales(){salesTable.innerHTML=makeTable(db.sales,['日付','摘要','総売','店販','支払'],r=>[r.date,esc(r.item),yen(r.total),yen(r.retail),esc(r.payment||'-')])}
 function addExpense(){const x={date:eDate.value,cat:eCat.value,memo:eMemo.value.trim(),amount:Number(eAmount.value)};if(!x.date||!x.memo||!x.amount){alert('日付・内容・金額を入力してください。');return}db.expenses.unshift(x);save();eMemo.value='';eAmount.value=''}
 function renderExpenses(){expenseTable.innerHTML=makeTable(db.expenses,['日付','分類','内容','金額'],r=>[r.date,'<span class="badge">'+esc(r.cat)+'</span>',esc(r.memo),yen(r.amount)])}
 function addInventory(){const x={name:iName.value.trim(),price:Number(iPrice.value),qty:Number(iQty.value)};if(!x.name||!x.price){alert('品名・単価を入力してください。');return}db.inventory.push(x);save();iName.value='';iPrice.value='';iQty.value=1}
@@ -149,6 +164,6 @@ function exportData(){const blob=new Blob([JSON.stringify(db,null,2)],{type:'app
 function resetDemo(){if(confirm('デモデータを初期状態に戻しますか？')){db=seed();save();setDefaults()}}
 function updateOnline(){offlineStatus.textContent=navigator.onLine?'オフライン対応':'オフライン稼働中'}window.addEventListener('online',updateOnline);window.addEventListener('offline',updateOnline);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
-setDefaults();updateOnline();renderAll();
+setDefaults();updateOnline();updateChange();renderAll();
 </script>
 </body></html>
