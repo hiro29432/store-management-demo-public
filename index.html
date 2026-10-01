@@ -58,8 +58,8 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 <aside class="side">
 <div class="brand">店舗管理デモ</div>
 <div class="nav">
-<button class="active" data-page="home">ホーム</button>
-<button data-page="sales">売上・POS</button>
+<button data-page="home">ホーム</button>
+<button class="active" data-page="sales">売上・POS</button>
 <button data-page="expenses">経費</button>
 <button data-page="inventory">在庫</button>
 <button data-page="calendar">カレンダー</button>
@@ -70,11 +70,11 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 </aside>
 <main class="main">
 <div class="top">
-<div><div id="pageTitle" class="title">ホーム</div><div class="sub">デモデータはこの端末内だけに保存されます</div></div>
+<div><div id="pageTitle" class="title">売上・POS</div><div class="sub">デモデータはこの端末内だけに保存されます</div></div>
 <div class="actions"><span id="offlineStatus" class="status">オフライン対応</span><button class="btn" onclick="exportData()">バックアップ</button><button class="btn danger" onclick="resetDemo()">デモ初期化</button></div>
 </div>
 
-<section id="home" class="page">
+<section id="home" class="page hidden">
 <div class="cards">
 <div class="card"><div class="k">本日の売上</div><div class="v" id="todaySales">¥0</div></div>
 <div class="card"><div class="k">今月の売上</div><div class="v" id="monthSales">¥0</div></div>
@@ -84,7 +84,7 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 <div class="grid2"><div class="panel"><h2>最近の売上</h2><div id="recentSales"></div></div><div class="panel"><h2>本日の予定</h2><div id="todayEvents"></div></div></div>
 </section>
 
-<section id="sales" class="page hidden">
+<section id="sales" class="page">
 <div class="grid2">
 <div class="panel"><h2>POS入力</h2>
 <div class="actions" style="margin-top:0;margin-bottom:14px">
