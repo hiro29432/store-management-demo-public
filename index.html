@@ -132,6 +132,16 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 
 <section id="calendar" class="page hidden">
 <div class="panel"><h2>予定登録</h2><div class="formgrid"><div><label>日付</label><input id="cDate" type="date"></div><div><label>予定</label><input id="cTitle" placeholder="例：定休日"></div></div><div class="actions"><button class="btn primary" onclick="addEvent()">予定を登録</button></div></div>
+<div class="panel">
+<h2>カレンダー表示・印刷</h2>
+<div class="formgrid"><div><label>表示する月</label><input id="calendarMonth" type="month" onchange="renderCalendar()"></div></div>
+<div class="actions">
+<button class="btn" onclick="showCalendarReport()">管理用カレンダー表示</button>
+<button class="btn primary" onclick="printCalendarReport()">管理用カレンダー印刷</button>
+<button class="btn" onclick="showCustomerCalendar()">お客様配布用を表示</button>
+<button class="btn primary" onclick="printCustomerCalendar()">お客様配布用を印刷</button>
+</div>
+</div>
 <div class="panel"><h2 id="calTitle"></h2><div id="calendarGrid" class="calgrid"></div></div>
 </section>
 
@@ -140,15 +150,33 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 <h2>対象月</h2>
 <div class="formgrid"><div><label>印刷・集計する月</label><input id="reportMonth" type="month" onchange="renderMonthly()"></div></div>
 <div id="monthlyCloseStatus" class="notice" style="margin-top:14px"></div>
-<div class="actions"><button id="monthlyCloseButton" class="btn primary" onclick="closeSelectedMonth()">月次締めを実行</button></div>
+<div class="actions">
+<button id="monthlyCloseButton" class="btn primary" onclick="closeSelectedMonth()">月次締めを実行</button>
+<button class="btn good" onclick="printMonthlyBundle()">この月を一括印刷</button>
+</div>
+</div>
+<div class="panel">
+<h2>複数月の一括印刷</h2>
+<div class="formgrid"><div><label>対象年</label><input id="multiPrintYear" type="number" min="2000" max="2100" onchange="renderMultiMonthSelector()"></div></div>
+<div id="multiMonthSelector" class="actions" style="margin-top:12px"></div>
+<div class="actions"><button class="btn primary" onclick="printSelectedMonths()">選択した月を一括印刷</button></div>
+<div class="sub">対象：月次集計・売上一覧・経費一覧・在庫一覧。カレンダーは含みません。</div>
 </div>
 <div class="cards"><div class="card"><div class="k">月間売上</div><div class="v" id="mSales">¥0</div></div><div class="card"><div class="k">月間経費</div><div class="v" id="mExpense">¥0</div></div><div class="card"><div class="k">差引</div><div class="v" id="mProfit">¥0</div></div><div class="card"><div class="k">店販売上</div><div class="v" id="mRetail">¥0</div></div></div>
 <div class="panel"><h2>月次集計</h2><div id="monthlyDetail"></div><div class="actions"><button class="btn" onclick="showReport('summary')">表示</button><button class="btn primary" onclick="printMonthlyReport('summary')">印刷</button></div></div>
 <div class="panel"><h2>売上一覧</h2><div class="sub">No.・日付・内容・数量・総売上・店販売上・支払方法・伝票番号</div><div class="actions"><button class="btn" onclick="showReport('sales')">表示</button><button class="btn primary" onclick="printMonthlyReport('sales')">印刷</button></div></div>
 <div class="panel"><h2>経費一覧</h2><div class="sub">日付・分類・内容・金額</div><div class="actions"><button class="btn" onclick="showReport('expenses')">表示</button><button class="btn primary" onclick="printMonthlyReport('expenses')">印刷</button></div></div>
 <div class="panel"><h2>在庫一覧</h2><div class="sub">品名・単価・数量・在庫金額</div><div class="actions"><button class="btn" onclick="showReport('inventory')">表示</button><button class="btn primary" onclick="printMonthlyReport('inventory')">印刷</button></div></div>
-<div class="panel"><h2>管理用カレンダー</h2><div class="sub">選択月の予定を含む月間カレンダー</div><div class="actions"><button class="btn" onclick="showReport('calendar')">表示</button><button class="btn primary" onclick="printMonthlyReport('calendar')">印刷</button></div></div>
-<div class="panel"><h2>お客様配布用カレンダー</h2><div class="sub">従来Excelと同じ2か月横並び・5面付け。1面サイズは固定。</div><div class="actions"><button class="btn" onclick="showCustomerCalendar()">表示</button><button class="btn primary" onclick="printCustomerCalendar()">印刷</button></div></div>
+<div class="panel">
+<h2>内容編集</h2>
+<div class="notice">売上・経費・在庫の修正は、この月次ページで行います。締め済みの月を修正した場合は、修正後に「月次締めをやり直す」を実行してください。</div>
+<div class="actions">
+<button class="btn" onclick="setMonthlyEditType('sales')">売上を編集</button>
+<button class="btn" onclick="setMonthlyEditType('expenses')">経費を編集</button>
+<button class="btn" onclick="setMonthlyEditType('inventory')">在庫を編集</button>
+</div>
+<div id="monthlyEditTable" style="margin-top:14px"></div>
+</div>
 </section>
 
 <section id="settings" class="page hidden">
@@ -286,6 +314,8 @@ function showSettingsSaved(){
 function setDefaults(){
   ['sDate','eDate','cDate'].forEach(id=>document.getElementById(id).value=today());
   const rm=document.getElementById('reportMonth'); if(rm&&!rm.value) rm.value=ym();
+  const cm=document.getElementById('calendarMonth'); if(cm&&!cm.value) cm.value=ym();
+  const my=document.getElementById('multiPrintYear'); if(my&&!my.value) my.value=Number(ym().slice(0,4));
 }
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(b.dataset.page).classList.remove('hidden');const titles={home:'ホーム',sales:'売上・POS',expenses:'経費',inventory:'在庫',calendar:'カレンダー',monthly:'月次・印刷',settings:'設定'};document.getElementById('pageTitle').textContent=titles[b.dataset.page];renderAll()});
 function renderAll(){renderPos();renderCart();renderSales();renderExpenses();renderInventory();renderHome();renderCalendar();renderMonthly();renderSettings()}
@@ -473,8 +503,8 @@ function addPaymentMethod(){const n=newPayment.value.trim();if(!n)return;if(!db.
 function deletePaymentMethod(i){if(db.settings.payments.length<=1){alert('支払方法は1つ以上必要です。');return}db.settings.payments.splice(i,1);save()}
 function addExpense(){const x={date:eDate.value,cat:eCat.value,memo:eMemo.value.trim(),amount:Number(eAmount.value)};if(!x.date||!x.memo||!x.amount){alert('日付・内容・金額を入力してください。');return}db.expenses.unshift(x);save();eMemo.value='';eAmount.value=''}
 function renderExpenses(){
-  expenseTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>日付</th><th>分類</th><th>内容</th><th class="num">金額</th><th>操作</th></tr></thead><tbody>'+
-  db.expenses.map((r,i)=>'<tr><td>'+esc(r.date)+'</td><td><span class="badge">'+esc(r.cat)+'</span></td><td>'+esc(r.memo)+'</td><td class="num">'+yen(r.amount)+'</td><td><button class="btn" onclick="editExpense('+i+')">修正</button> <button class="btn danger" onclick="deleteExpense('+i+')">削除</button></td></tr>').join('')+
+  expenseTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>日付</th><th>分類</th><th>内容</th><th class="num">金額</th></tr></thead><tbody>'+
+  db.expenses.map(r=>'<tr><td>'+esc(r.date)+'</td><td><span class="badge">'+esc(r.cat)+'</span></td><td>'+esc(r.memo)+'</td><td class="num">'+yen(r.amount)+'</td></tr>').join('')+
   '</tbody></table></div>';
 }
 function editExpense(i){
@@ -488,7 +518,7 @@ function editExpense(i){
 function deleteExpense(i){if(confirm('この経費を削除しますか？')){db.expenses.splice(i,1);save()}}
 function addInventory(){const x={name:iName.value.trim(),price:Number(iPrice.value),qty:Number(iQty.value)};if(!x.name||!x.price){alert('品名・単価を入力してください。');return}db.inventory.push(x);save();iName.value='';iPrice.value='';iQty.value=1}
 function changeQty(i,d){db.inventory[i].qty=Math.max(0,Number(db.inventory[i].qty)+d);save()}
-function renderInventory(){inventoryTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>品名</th><th class="num">単価</th><th class="num">数量</th><th class="num">合計</th><th>操作</th></tr></thead><tbody>'+db.inventory.map((r,i)=>'<tr><td>'+esc(r.name)+'</td><td class="num">'+yen(r.price)+'</td><td class="num">'+r.qty+'</td><td class="num">'+yen(Number(r.price||0)*Number(r.qty||0))+'</td><td><button class="btn" onclick="changeQty('+i+',-1)">−</button> <button class="btn" onclick="changeQty('+i+',1)">＋</button> <button class="btn" onclick="editInventory('+i+')">修正</button> <button class="btn danger" onclick="deleteInventory('+i+')">削除</button></td></tr>').join('')+'</tbody></table></div>'}
+function renderInventory(){inventoryTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>品名</th><th class="num">単価</th><th class="num">数量</th><th class="num">合計</th><th>数量調整</th></tr></thead><tbody>'+db.inventory.map((r,i)=>'<tr><td>'+esc(r.name)+'</td><td class="num">'+yen(r.price)+'</td><td class="num">'+r.qty+'</td><td class="num">'+yen(Number(r.price||0)*Number(r.qty||0))+'</td><td><button class="btn" onclick="changeQty('+i+',-1)">−</button> <button class="btn" onclick="changeQty('+i+',1)">＋</button></td></tr>').join('')+'</tbody></table></div>'}
 function editInventory(i){
   const r=db.inventory[i];if(!r)return;
   const name=prompt('品名',r.name);if(name===null)return;
@@ -506,11 +536,12 @@ function renderHome(){
   todaySales.textContent=yen(ts);monthSales.textContent=yen(ms);monthExp.textContent=yen(me);invValue.textContent=yen(iv);
   const el=document.getElementById('homeSalesTable'); if(!el)return;
   const rows=db.sales.map((r,i)=>({...r,_i:i}));
-  el.innerHTML='<div class="tablewrap"><table><thead><tr><th>No.</th><th>日付</th><th>摘要</th><th class="num">総売</th><th class="num">店販</th><th>支払</th><th>操作</th></tr></thead><tbody>'+
-    rows.map(r=>'<tr><td>'+esc(r.no||'')+'</td><td>'+esc(r.date||'')+'</td><td>'+esc(r.item||'')+'</td><td class="num">'+yen(r.total)+'</td><td class="num">'+yen(r.retail)+'</td><td>'+esc(r.payment||'-')+'</td><td><button class="btn" onclick="editSale('+r._i+')">修正</button> <button class="btn danger" onclick="deleteSale('+r._i+')">削除</button></td></tr>').join('')+
+  el.innerHTML='<div class="tablewrap"><table><thead><tr><th>No.</th><th>日付</th><th>摘要</th><th class="num">総売</th><th class="num">店販</th><th>支払</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td>'+esc(r.no||'')+'</td><td>'+esc(r.date||'')+'</td><td>'+esc(r.item||'')+'</td><td class="num">'+yen(r.total)+'</td><td class="num">'+yen(r.retail)+'</td><td>'+esc(r.payment||'-')+'</td></tr>').join('')+
     '</tbody></table></div>';
 }
-function renderCalendar(){const d=new Date(),y=d.getFullYear(),m=d.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0);calTitle.textContent=y+'年'+(m+1)+'月';let a=[];for(let i=0;i<first.getDay();i++)a.push('<div></div>');for(let day=1;day<=last.getDate();day++){const ds=y+'-'+pad(m+1)+'-'+pad(day),ev=db.events.filter(x=>x.date===ds);a.push('<div class="day"><div class="d">'+day+'</div>'+ev.map(x=>'<div class="e">'+esc(x.title)+'</div>').join('')+'</div>')}calendarGrid.innerHTML=a.join('')}
+function selectedCalendarYm(){const el=document.getElementById('calendarMonth');return el&&el.value?el.value:ym()}
+function renderCalendar(){const target=selectedCalendarYm(),parts=target.split('-').map(Number),y=parts[0],m=parts[1]-1,first=new Date(y,m,1),last=new Date(y,m+1,0);calTitle.textContent=y+'年'+(m+1)+'月';let a=[];for(let i=0;i<first.getDay();i++)a.push('<div></div>');for(let day=1;day<=last.getDate();day++){const ds=y+'-'+pad(m+1)+'-'+pad(day),ev=db.events.filter(x=>x.date===ds);a.push('<div class="day"><div class="d">'+day+'</div>'+ev.map(x=>'<div class="e">'+esc(x.title)+'</div>').join('')+'</div>')}calendarGrid.innerHTML=a.join('')}
 function selectedYm(){const el=document.getElementById('reportMonth');return el&&el.value?el.value:ym()}
 function liveMonthData(target){
   return {
@@ -547,6 +578,53 @@ function renderMonthly(){
   const closed=db.closings&&db.closings[target],status=document.getElementById('monthlyCloseStatus'),btn=document.getElementById('monthlyCloseButton');
   if(status)status.innerHTML=closed?'締め済み：'+new Date(closed.closedAt).toLocaleString('ja-JP')+'<br>この月の帳票は締め時点の売上・経費・在庫を使用します。':'未締め：現在の売上・経費・在庫を表示しています。';
   if(btn)btn.textContent=closed?'月次締めをやり直す':'月次締めを実行';
+  renderMonthlyEditTable();
+  renderMultiMonthSelector();
+}
+let monthlyEditType='sales';
+function setMonthlyEditType(type){monthlyEditType=type;renderMonthlyEditTable()}
+function renderMonthlyEditTable(){
+  const el=document.getElementById('monthlyEditTable');if(!el)return;
+  const target=selectedYm();
+  if(monthlyEditType==='sales'){
+    const rows=db.sales.map((r,i)=>({...r,_i:i})).filter(r=>r.date&&r.date.startsWith(target));
+    el.innerHTML='<h3>売上編集 '+esc(target)+'</h3><div class="tablewrap"><table><thead><tr><th>No.</th><th>日付</th><th>内容</th><th class="num">総売上</th><th class="num">店販</th><th>支払</th><th>操作</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.no||'')+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.item)+'</td><td class="num">'+yen(r.total)+'</td><td class="num">'+yen(r.retail)+'</td><td>'+esc(r.payment||'-')+'</td><td><button class="btn" onclick="editSale('+r._i+')">修正</button> <button class="btn danger" onclick="deleteSale('+r._i+')">削除</button></td></tr>').join('')+'</tbody></table></div>';
+  }else if(monthlyEditType==='expenses'){
+    const rows=db.expenses.map((r,i)=>({...r,_i:i})).filter(r=>r.date&&r.date.startsWith(target));
+    el.innerHTML='<h3>経費編集 '+esc(target)+'</h3><div class="tablewrap"><table><thead><tr><th>日付</th><th>分類</th><th>内容</th><th class="num">金額</th><th>操作</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.cat)+'</td><td>'+esc(r.memo)+'</td><td class="num">'+yen(r.amount)+'</td><td><button class="btn" onclick="editExpense('+r._i+')">修正</button> <button class="btn danger" onclick="deleteExpense('+r._i+')">削除</button></td></tr>').join('')+'</tbody></table></div>';
+  }else{
+    el.innerHTML='<h3>在庫編集</h3><div class="tablewrap"><table><thead><tr><th>品名</th><th class="num">単価</th><th class="num">数量</th><th class="num">在庫金額</th><th>操作</th></tr></thead><tbody>'+db.inventory.map((r,i)=>'<tr><td>'+esc(r.name)+'</td><td class="num">'+yen(r.price)+'</td><td class="num">'+r.qty+'</td><td class="num">'+yen(Number(r.price||0)*Number(r.qty||0))+'</td><td><button class="btn" onclick="editInventory('+i+')">修正</button> <button class="btn danger" onclick="deleteInventory('+i+')">削除</button></td></tr>').join('')+'</tbody></table></div>';
+  }
+}
+function renderMultiMonthSelector(){
+  const el=document.getElementById('multiMonthSelector');if(!el)return;
+  const y=Number(document.getElementById('multiPrintYear')?.value||selectedYm().slice(0,4));
+  const checked=new Set(Array.from(el.querySelectorAll('input:checked')).map(x=>x.value));
+  el.innerHTML=Array.from({length:12},(_,i)=>{const v=y+'-'+pad(i+1);return '<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff"><input type="checkbox" class="multiMonthCheck" value="'+v+'" '+(checked.has(v)?'checked':'')+' style="width:auto;height:auto">'+(i+1)+'月</label>'}).join('');
+}
+function monthlyBundleHtml(target){
+  return '<section class="bundlePage">'+buildReport('summary',target)+'</section>'+
+         '<section class="bundlePage">'+buildReport('sales',target)+'</section>'+
+         '<section class="bundlePage">'+buildReport('expenses',target)+'</section>'+
+         '<section class="bundlePage">'+buildReport('inventory',target)+'</section>';
+}
+function printMonthlyBundle(){
+  const target=selectedYm();
+  const css='.bundlePage{page-break-after:always}.bundlePage:last-child{page-break-after:auto}';
+  openPrintWindow('月次一括 '+target,monthlyBundleHtml(target),css,'A4 portrait','10mm');
+}
+function printSelectedMonths(){
+  const months=Array.from(document.querySelectorAll('.multiMonthCheck:checked')).map(x=>x.value).sort();
+  if(!months.length){alert('印刷する月を選択してください。');return}
+  const html=months.map(m=>'<div class="monthBundle">'+monthlyBundleHtml(m)+'</div>').join('');
+  const css='.bundlePage{page-break-after:always}.monthBundle{page-break-after:always}.monthBundle:last-child{page-break-after:auto}';
+  openPrintWindow('複数月 月次一括',html,css,'A4 portrait','10mm');
+}
+function showCalendarReport(){
+  const target=selectedCalendarYm();currentReportType='calendar';reportModalTitle.textContent='管理用カレンダー プレビュー';reportPreview.innerHTML='<h2>'+esc(target)+' 管理用カレンダー</h2>'+buildMonthCalendarHtml(target,true);reportModal.classList.remove('hidden');
+}
+function printCalendarReport(){
+  const target=selectedCalendarYm();openPrintWindow('管理用カレンダー '+target,'<h2>'+esc(target)+' 管理用カレンダー</h2>'+buildMonthCalendarHtml(target,true),'','A4 portrait','10mm');
 }
 function simpleKeyValue(obj){
   const entries=Object.entries(obj); if(!entries.length)return '<div class="notice">該当データはありません。</div>';
@@ -559,8 +637,8 @@ function reportTitle(type){
 function reportSalesRows(target){
   return monthData(target).sales.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||Number(a.no||0)-Number(b.no||0));
 }
-function buildReport(type){
-  const target=selectedYm(),data=monthData(target),sales=data.sales.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||Number(a.no||0)-Number(b.no||0)),expenses=data.expenses.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')),inventory=data.inventory||[];
+function buildReport(type,targetOverride){
+  const target=targetOverride||selectedYm(),data=monthData(target),sales=data.sales.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||Number(a.no||0)-Number(b.no||0)),expenses=data.expenses.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')),inventory=data.inventory||[];
   if(type==='summary'){
     const st=sales.reduce((a,b)=>a+Number(b.total||0),0),rt=sales.reduce((a,b)=>a+Number(b.retail||0),0),et=expenses.reduce((a,b)=>a+Number(b.amount||0),0),by={},pay={};
     expenses.forEach(x=>by[x.cat]=(by[x.cat]||0)+Number(x.amount||0));sales.forEach(x=>pay[x.payment||'未設定']=(pay[x.payment||'未設定']||0)+Number(x.total||0));
@@ -600,7 +678,7 @@ function showReport(type){
   currentReportType=type;reportModalTitle.textContent=reportTitle(type)+' プレビュー';reportPreview.innerHTML=buildReport(type);reportModal.classList.remove('hidden');
 }
 function closeReport(){reportModal.classList.add('hidden')}
-function printCurrentReport(){if(currentReportType==='customer')printCustomerCalendar();else printMonthlyReport(currentReportType)}
+function printCurrentReport(){if(currentReportType==='customer')printCustomerCalendar();else if(currentReportType==='calendar')printCalendarReport();else printMonthlyReport(currentReportType)}
 function printMonthlyReport(type){
   const html=buildReport(type),title=reportTitle(type)+' '+selectedYm();
   const landscape=type==='sales'||type==='expenses';
@@ -615,16 +693,17 @@ function customerCalendarBlock(target){
   const [y,m]=target.split('-').map(Number),next=new Date(y,m,1),nextYm=next.getFullYear()+'-'+pad(next.getMonth()+1),reiwa=y-2018;
   return '<div class="customerBlock"><div class="pair"><div class="mini"><div class="mh"><span>令和'+reiwa+'年</span><b>'+m+'月</b><span>定休日</span></div>'+buildMonthCalendarHtml(target,false)+'</div><div class="mini"><div class="mh"><span></span><b>'+Number(nextYm.slice(5))+'月</b><span>定休日</span></div>'+buildMonthCalendarHtml(nextYm,false)+'</div></div><div class="shopline"><span>'+esc(db.settings.storeName||'店舗')+'</span><span>'+esc(db.settings.storePhone||'')+'</span></div></div>';
 }
-function buildCustomerCalendarSheet(){
-  const target=selectedYm(),block=customerCalendarBlock(target);
+function buildCustomerCalendarSheet(targetOverride){
+  const target=targetOverride||selectedCalendarYm(),block=customerCalendarBlock(target);
   return '<div class="customerSheet">'+Array(5).fill(block).join('<div class="cutgap"></div>')+'</div>';
 }
 function showCustomerCalendar(){
-  currentReportType='customer';reportModalTitle.textContent='お客様配布用カレンダー プレビュー';reportPreview.innerHTML=buildCustomerCalendarSheet();reportModal.classList.remove('hidden');
+  currentReportType='customer';reportModalTitle.textContent='お客様配布用カレンダー プレビュー';reportPreview.innerHTML=buildCustomerCalendarSheet(selectedCalendarYm());reportModal.classList.remove('hidden');
 }
 function printCustomerCalendar(){
   const css='body{margin:0}.customerSheet{width:170mm;margin:0 auto}.customerBlock{height:54mm;box-sizing:border-box;overflow:hidden}.cutgap{height:1.5mm;border-top:0.2mm dashed #aaa}.pair{display:grid;grid-template-columns:1fr 1fr;gap:5mm}.mini .mh{height:7mm;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;text-align:center;font-size:9px}.mini .mh b{font-size:15px}.customerBlock .monthcal{font-size:8px;table-layout:fixed}.customerBlock .monthcal th,.customerBlock .monthcal td{padding:0;text-align:center;border:0;height:5.2mm;vertical-align:middle}.customerBlock .monthcal .closed{background:#ffb3b3}.shopline{height:7mm;display:flex;justify-content:space-around;align-items:center;font-size:11px;font-weight:700}.customerBlock .ev{display:none}';
-  openPrintWindow('お客様配布用カレンダー '+selectedYm(),buildCustomerCalendarSheet(),css,'A4 portrait','5mm 20mm');
+  const target=selectedCalendarYm();
+  openPrintWindow('お客様配布用カレンダー '+target,buildCustomerCalendarSheet(target),css,'A4 portrait','5mm 20mm');
 }
 function makeTable(rows,heads,map){return '<div class="tablewrap"><table><thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+map(r).map((v,i)=>'<td class="'+(i>=2?'num':'')+'">'+v+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}
 function openOther(){otherCategory=currentPosCategory;const h=otherModal.querySelector('h3');if(h)h.textContent=(otherCategory==='retail'?'店販':'施術')+'・その他';otherModal.classList.remove('hidden');otherName.focus()}function closeOther(){otherModal.classList.add('hidden');otherName.value='';otherPrice.value=''}
@@ -633,6 +712,6 @@ function exportData(){const blob=new Blob([JSON.stringify(db,null,2)],{type:'app
 function resetDemo(){if(confirm('デモデータを初期状態に戻しますか？')){db=seed();save();setDefaults()}}
 function updateOnline(){offlineStatus.textContent=navigator.onLine?'オフライン対応':'オフライン稼働中'}window.addEventListener('online',updateOnline);window.addEventListener('offline',updateOnline);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
-setDefaults();updateOnline();setPosCategory('service');renderAll();
+setDefaults();updateOnline();setPosCategory('service');renderAll();renderMultiMonthSelector();
 </script>
 </body></html>
