@@ -288,8 +288,8 @@ function renderSettings(){
   setStoreAddress.value=db.settings.storeAddress||'';
   setTaxRate.value=db.settings.taxRate??10;
 
-  settingsPosTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>区分</th><th>名称</th><th class="num">金額</th><th>操作</th></tr></thead><tbody>'+
-  db.pos.map((p,i)=>'<tr><td>'+(p.category==='retail'?'店販':'施術')+'</td><td><input value="'+esc(p.name)+'" onchange="editPosName('+i+',this.value)"></td><td><input type="number" value="'+p.price+'" onchange="editPosPrice('+i+',this.value)"></td><td><button class="btn danger" onclick="deletePosSetting('+i+')">削除</button></td></tr>').join('')+
+  settingsPosTable.innerHTML='<div class="tablewrap"><table><thead><tr><th>順番</th><th>区分</th><th>名称</th><th class="num">金額</th><th>操作</th></tr></thead><tbody>'+
+  db.pos.map((p,i)=>'<tr><td><button class="btn" onclick="movePosSetting('+i+',-1)" '+(i===0?'disabled':'')+'>↑</button> <button class="btn" onclick="movePosSetting('+i+',1)" '+(i===db.pos.length-1?'disabled':'')+'>↓</button></td><td>'+(p.category==='retail'?'店販':'施術')+'</td><td><input value="'+esc(p.name)+'" onchange="editPosName('+i+',this.value)"></td><td><input type="number" value="'+p.price+'" onchange="editPosPrice('+i+',this.value)"></td><td><button class="btn danger" onclick="deletePosSetting('+i+')">削除</button></td></tr>').join('')+
   '</tbody></table></div>';
 
   settingsExpenseCats.innerHTML=db.settings.expenseCategories.map((x,i)=>'<span class="badge" style="margin:4px">'+esc(x)+' <button onclick="deleteExpenseCategory('+i+')" style="border:0;background:transparent">×</button></span>').join('');
@@ -303,6 +303,7 @@ function renderSettings(){
 function saveBasicSettings(){db.settings.storeName=setStoreName.value.trim()||'店舗管理デモ';db.settings.storePhone=setStorePhone.value.trim();db.settings.storeAddress=setStoreAddress.value.trim();db.settings.taxRate=Math.max(0,Number(setTaxRate.value||0));save()}
 function editPosName(i,v){const n=v.trim();if(n){db.pos[i].name=n;save()}}
 function editPosPrice(i,v){db.pos[i].price=Math.max(0,Number(v||0));save()}
+function movePosSetting(i,d){const j=i+d;if(j<0||j>=db.pos.length)return;const tmp=db.pos[i];db.pos[i]=db.pos[j];db.pos[j]=tmp;save()}
 function deletePosSetting(i){if(confirm('このPOS項目を削除しますか？')){db.pos.splice(i,1);save()}}
 function addSettingPos(){const n=newPosName.value.trim(),p=Number(newPosPrice.value),cat=newPosCategory.value;if(!n||!p){alert('名称と金額を入力してください。');return}db.pos.push({name:n,price:p,category:cat});newPosName.value='';newPosPrice.value='';save()}
 function addExpenseCategory(){const n=newExpenseCat.value.trim();if(!n)return;if(!db.settings.expenseCategories.includes(n))db.settings.expenseCategories.push(n);newExpenseCat.value='';save()}
