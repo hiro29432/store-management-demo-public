@@ -44,6 +44,10 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 .receipt{width:80mm;max-width:100%;margin:auto;background:#fff;color:#111;padding:8mm 6mm;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5}
 .receipt h3{text-align:center;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;margin:0 0 4px;font-size:18px}
 .receipt .center{text-align:center}.receipt .rule{border-top:1px dashed #111;margin:8px 0}.receipt .row{display:flex;justify-content:space-between;gap:12px}.receipt .total{font-size:16px;font-weight:800}
+.keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.keypad-grid button{min-height:62px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;font-size:24px;font-weight:800}
+.keypad-grid .wide{grid-column:span 2}
+.keypad-display{height:58px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;padding:0 14px;display:flex;align-items:center;justify-content:flex-end;font-size:28px;font-weight:800}
 @media(max-width:900px){.app{grid-template-columns:1fr}.side{position:sticky;top:0;z-index:5;padding:8px;display:block}.brand{display:none}.nav{flex-direction:row;overflow:auto}.nav button{white-space:nowrap;padding:10px 12px}.foot{display:none}.main{padding:14px}.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
 @media(max-width:600px){.formgrid{grid-template-columns:1fr}.posgrid{grid-template-columns:repeat(2,1fr)}.title{font-size:23px}}
 @media print{.side,.top .actions,.btn,.posgrid,.formgrid{display:none!important}.app{display:block}.main{padding:0}.panel,.card{box-shadow:none}}
@@ -99,7 +103,7 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 <div class="formgrid" style="margin-top:14px">
 <div><label>日付</label><input id="sDate" type="date"></div>
 <div><label>支払方法</label><select id="sPayment" onchange="paymentChanged()"><option>現金</option><option>クレジットカード</option><option>電子マネー</option><option>QR決済</option><option>その他</option></select></div>
-<div><label>預り金</label><input id="sReceived" type="number" inputmode="numeric" oninput="updateChange()" placeholder="現金時のみ"></div>
+<div><label>預り金</label><input id="sReceived" type="text" inputmode="none" readonly onclick="openCashKeypad()" placeholder="タップして入力"></div>
 <div><label>店販売上</label><input id="sRetail" type="number" value="0" readonly></div>
 <div class="full"><div class="notice" id="changeBox">お釣り：¥0</div></div>
 </div>
@@ -170,6 +174,19 @@ th,td{padding:11px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-siz
 
 <div id="otherModal" class="modal hidden"><div class="dialog"><h3>その他売上</h3><div class="notice">入力した内容を今回だけ使用するか、POSメニューへ登録できます。</div><label>内容</label><input id="otherName" placeholder="例：ヘッドスパ"><label style="margin-top:10px">金額</label><input id="otherPrice" type="number" inputmode="numeric"><div class="actions"><button class="btn" onclick="closeOther()">キャンセル</button><button class="btn" onclick="useOther(false)">今回だけ使用</button><button class="btn primary" onclick="useOther(true)">POSへ登録して使用</button></div></div></div>
 
+<div id="cashKeypadModal" class="modal hidden" onclick="if(event.target===this)closeCashKeypad()">
+  <div class="dialog">
+    <h3>預り金を入力</h3>
+    <div id="cashKeypadDisplay" class="keypad-display">¥0</div>
+    <div class="keypad-grid">
+      <button onclick="cashKey('7')">7</button><button onclick="cashKey('8')">8</button><button onclick="cashKey('9')">9</button>
+      <button onclick="cashKey('4')">4</button><button onclick="cashKey('5')">5</button><button onclick="cashKey('6')">6</button>
+      <button onclick="cashKey('1')">1</button><button onclick="cashKey('2')">2</button><button onclick="cashKey('3')">3</button>
+      <button onclick="cashKey('0')">0</button><button onclick="cashKey('00')">00</button><button onclick="cashKey('back')">⌫</button>
+      <button onclick="cashKey('clear')">C</button><button class="wide" onclick="closeCashKeypad(true)" style="background:#2563eb;color:#fff">決定</button>
+    </div>
+  </div>
+</div>
 <script>
 const KEY='store_demo_pwa_v1';
 const pad=n=>String(n).padStart(2,'0');
@@ -255,6 +272,27 @@ function changeCartQty(i,d){cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);re
 function removeCartItem(i){cart.splice(i,1);renderCart()}
 function clearCart(){cart=[];sReceived.value='';renderCart()}
 function paymentChanged(){const t=cartTotals();if(sPayment.value!=='現金'){sReceived.value=t.total||''}updateChange()}
+let cashKeypadValue='';
+function openCashKeypad(){
+  if(sPayment.value!=='現金') return;
+  cashKeypadValue=String(sReceived.value||'').replace(/\D/g,'');
+  renderCashKeypad();
+  cashKeypadModal.classList.remove('hidden');
+}
+function cashKey(k){
+  if(k==='clear') cashKeypadValue='';
+  else if(k==='back') cashKeypadValue=cashKeypadValue.slice(0,-1);
+  else {
+    if(cashKeypadValue==='0') cashKeypadValue='';
+    cashKeypadValue=(cashKeypadValue+k).replace(/^0+(?=\d)/,'').slice(0,9);
+  }
+  renderCashKeypad();
+}
+function renderCashKeypad(){cashKeypadDisplay.textContent=yen(Number(cashKeypadValue||0))}
+function closeCashKeypad(apply=false){
+  if(apply){sReceived.value=Number(cashKeypadValue||0)||'';updateChange()}
+  cashKeypadModal.classList.add('hidden');
+}
 function updateChange(){const total=cartTotals().total,received=Number(sReceived.value||0);const change=sPayment.value==='現金'?Math.max(0,received-total):0;changeBox.textContent='お釣り：'+yen(change)}
 function checkout(){
   const date=sDate.value,payment=sPayment.value,received=Number(sReceived.value||0),t=cartTotals();
